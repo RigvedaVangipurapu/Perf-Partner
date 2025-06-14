@@ -44,6 +44,14 @@ st.markdown("""
     .chat-message.assistant {
         background-color: #475063;
     }
+    .privacy-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        color: #856404;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -53,6 +61,15 @@ st.markdown("""
     Your AI-powered relationship assistant that helps you find the perfect gifts and date ideas
     based on your chat history with your partner.
 """)
+
+# Privacy Notice
+st.markdown("""
+    <div class="privacy-warning">
+        <h4>🔒 Privacy Notice</h4>
+        <p><strong>Important:</strong> When you request recommendations, relevant portions of your chat history will be sent to Google Gemini AI for processing. While your data is stored locally on your device, the recommendation feature requires sending chat context to Google's servers.</p>
+        <p>Please ensure you're comfortable with this before uploading sensitive conversations.</p>
+    </div>
+""", unsafe_allow_html=True)
 
 # Check if backend is running
 def check_backend():
@@ -74,7 +91,7 @@ if not check_backend():
 st.header("Step 1: Upload Chat History")
 st.markdown("""
     Upload your chat history file (WhatsApp, iMessage, or other messenger exports).
-    Your data stays private and is stored locally on your device.
+    Your data is stored locally on your device.
 """)
 
 uploaded_file = st.file_uploader("Choose a chat history file", type=['txt'])
@@ -118,6 +135,9 @@ if uploaded_file is not None:
 if st.session_state.get('chat_uploaded', False):
     st.header("Step 2: Get Personalized Recommendations")
     
+    # Additional privacy reminder for recommendations
+    st.info("🔔 **Reminder:** When you request a recommendation, relevant chat excerpts will be sent to Google Gemini for AI processing.")
+    
     # Question input
     question = st.text_input(
         "What would you like to know?",
@@ -143,7 +163,8 @@ if st.session_state.get('chat_uploaded', False):
                         st.markdown(data['recommendation'])
                         
                         # Display context used
-                        with st.expander("View Context Used"):
+                        with st.expander("View Context Used (This data was sent to Google Gemini)"):
+                            st.warning("The following chat excerpts were sent to Google Gemini for processing:")
                             for memory in data['context_used']:
                                 st.markdown(f"* {memory}")
                     else:
@@ -162,6 +183,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center'>
         <p>Made with ❤️ for better relationships</p>
-        <p>Your data is stored locally and never leaves your device</p>
+        <p><strong>Privacy:</strong> Your chat files are stored locally. Recommendations require sending data to Google Gemini.</p>
     </div>
 """, unsafe_allow_html=True) 
