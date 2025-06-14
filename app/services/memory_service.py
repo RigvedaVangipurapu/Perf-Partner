@@ -2,7 +2,7 @@ from typing import List, Dict
 import json
 import numpy as np
 from sqlalchemy.orm import Session
-from app.models.database import ChatMemory, PartnerNote
+from app.models.database import ChatMemory, PartnerNote, ChatFile
 from app.utils.chat_processor import ChatProcessor
 import google.generativeai as genai
 from datetime import datetime
@@ -13,16 +13,30 @@ class MemoryService:
         self.chat_processor = ChatProcessor()
         self.model = genai.GenerativeModel('gemini-1.5-flash')
     
-    def process_and_store_chat(self, text: str) -> Dict:
+    def process_and_store_chat(self, text: str, filename: str = None, file_size: int = None) -> Dict:
         """
         Process chat history and store memories in the database
         """
         # Process the chat
         processed_data = self.chat_processor.process_chat(text)
         
-        # Store chunks as memories
+        # Create chat file record
+        chat_file = ChatFile(
+            filename=filename or "unknown_file.txt",
+            file_size=file_size,
+            total_messages=processed_data['metadata']['total_messages'],
+            participants=json.dumps(processed_data['metadata']['participants']),
+            date_range_start=datetime.fromisoformat(processed_data['metadata']['date_range']['start']) if processed_data['metadata']['date_range']['start'] else None,
+            date_range_end=datetime.fromisoformat(processed_data['metadata']['date_range']['end']) if processed_data['metadata']['date_range']['end'] else None
+        )
+        self.db.add(chat_file)
+        self.db.commit()
+        self.db.refresh(chat_file)
+        
+        # Store chunks as memories linked to the chat file
         for chunk in processed_data['chunks']:
             memory = ChatMemory(
+                chat_file_id=chat_file.id,
                 text=chunk,
                 timestamp=datetime.utcnow(),  # TODO: Extract actual timestamp from chunk
                 embedding=None,  # TODO: Generate and store embedding
@@ -31,7 +45,51 @@ class MemoryService:
             self.db.add(memory)
         
         self.db.commit()
+        
+        # Add chat file info to metadata
+        processed_data['metadata']['chat_file_id'] = chat_file.id
+        processed_data['metadata']['uploaded_at'] = chat_file.uploaded_at.isoformat()
+        
         return processed_data['metadata']
+    
+    def get_all_chat_files(self) -> List[ChatFile]:
+        """
+        Get all uploaded chat files
+        """
+        return self.db.query(ChatFile)\
+            .order_by(ChatFile.uploaded_at.desc())\
+            .all()
+    
+    def delete_chat_file(self, chat_file_id: int) -> bool:
+        """
+        Delete a chat file and all its associated memories
+        """
+        # First delete all memories associated with this chat file
+        self.db.query(ChatMemory)\
+            .filter(ChatMemory.chat_file_id == chat_file_id)\
+            .delete()
+        
+        # Then delete the chat file record
+        chat_file = self.db.query(ChatFile).filter(ChatFile.id == chat_file_id).first()
+        if chat_file:
+            self.db.delete(chat_file)
+            self.db.commit()
+            return True
+        return False
+    
+    def get_chat_file_stats(self) -> Dict:
+        """
+        Get statistics about uploaded chat files
+        """
+        total_files = self.db.query(ChatFile).count()
+        total_memories = self.db.query(ChatMemory).count()
+        total_notes = self.db.query(PartnerNote).count()
+        
+        return {
+            "total_chat_files": total_files,
+            "total_memories": total_memories,
+            "total_notes": total_notes
+        }
     
     def add_partner_note(self, title: str, content: str, category: str = None) -> PartnerNote:
         """

@@ -46,6 +46,13 @@ class NoteUpdateRequest(BaseModel):
     content: Optional[str] = None
     category: Optional[str] = None
 
+@app.get("/api/health")
+async def health_check():
+    """
+    Health check endpoint
+    """
+    return {"status": "healthy"}
+
 @app.post("/api/upload-chat")
 async def upload_chat(
     file: UploadFile = File(...),
@@ -59,12 +66,71 @@ async def upload_chat(
         text = content.decode('utf-8')
         
         memory_service = MemoryService(db)
-        metadata = memory_service.process_and_store_chat(text)
+        metadata = memory_service.process_and_store_chat(
+            text=text,
+            filename=file.filename,
+            file_size=len(content)
+        )
         
         return {
             "message": "Chat history uploaded and processed successfully",
             "metadata": metadata
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/chat-files")
+async def get_chat_files(db: Session = Depends(get_db)):
+    """
+    Get all uploaded chat files
+    """
+    try:
+        memory_service = MemoryService(db)
+        chat_files = memory_service.get_all_chat_files()
+        
+        return [
+            {
+                "id": file.id,
+                "filename": file.filename,
+                "file_size": file.file_size,
+                "total_messages": file.total_messages,
+                "participants": file.participants,
+                "date_range_start": file.date_range_start.isoformat() if file.date_range_start else None,
+                "date_range_end": file.date_range_end.isoformat() if file.date_range_end else None,
+                "uploaded_at": file.uploaded_at.isoformat()
+            }
+            for file in chat_files
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/chat-files/{file_id}")
+async def delete_chat_file(file_id: int, db: Session = Depends(get_db)):
+    """
+    Delete a chat file and all its associated memories
+    """
+    try:
+        memory_service = MemoryService(db)
+        success = memory_service.delete_chat_file(file_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Chat file not found")
+        
+        return {"message": "Chat file and associated memories deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/stats")
+async def get_stats(db: Session = Depends(get_db)):
+    """
+    Get statistics about the stored data
+    """
+    try:
+        memory_service = MemoryService(db)
+        stats = memory_service.get_chat_file_stats()
+        return stats
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -79,28 +145,22 @@ async def get_recommendation(
     try:
         memory_service = MemoryService(db)
         
-        # Find relevant memories
+        # Find relevant memories and notes
         memories = memory_service.find_relevant_memories(request.question)
+        notes = memory_service.find_relevant_notes(request.question)
         
-        if not memories:
+        if not memories and not notes:
             raise HTTPException(
                 status_code=404,
-                detail="No chat memories found. Please upload a chat history first."
+                detail="No chat memories or notes found. Please upload a chat history or add some notes first."
             )
         
         # Generate recommendation
-        result = memory_service.generate_recommendation(request.question, memories)
+        result = memory_service.generate_recommendation(request.question, memories, notes)
         
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/health")
-async def health_check():
-    """
-    Health check endpoint
-    """
-    return {"status": "healthy"}
 
 @app.post("/api/notes")
 async def create_note(note: NoteRequest, db: Session = Depends(get_db)):

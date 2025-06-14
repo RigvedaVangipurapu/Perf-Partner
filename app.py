@@ -23,6 +23,8 @@ if 'metadata' not in st.session_state:
     st.session_state['metadata'] = None
 if 'notes_refresh' not in st.session_state:
     st.session_state['notes_refresh'] = 0
+if 'files_refresh' not in st.session_state:
+    st.session_state['files_refresh'] = 0
 
 # Custom CSS
 st.markdown("""
@@ -75,6 +77,30 @@ st.markdown("""
         display: inline-block;
         margin-bottom: 0.5rem;
     }
+    .file-card {
+        background-color: #f1f3f4;
+        border: 1px solid #dadce0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    .file-title {
+        font-weight: bold;
+        color: #1a73e8;
+        margin-bottom: 0.5rem;
+    }
+    .file-stats {
+        color: #5f6368;
+        font-size: 0.9rem;
+    }
+    .stats-card {
+        background-color: #e8f0fe;
+        border: 1px solid #1a73e8;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        text-align: center;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -110,8 +136,19 @@ if not check_backend():
     """)
     st.stop()
 
+# Helper function to format file size
+def format_file_size(size_bytes):
+    if size_bytes is None:
+        return "Unknown"
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
 # Create tabs for different sections
-tab1, tab2, tab3 = st.tabs(["📁 Chat History", "📝 Partner Notes", "💡 Get Recommendations"])
+tab1, tab2, tab3, tab4 = st.tabs(["📁 Upload Chat", "🗂️ Manage Files", "📝 Partner Notes", "💡 Get Recommendations"])
 
 with tab1:
     st.header("Upload Chat History")
@@ -134,6 +171,7 @@ with tab1:
                         data = response.json()
                         st.session_state['chat_uploaded'] = True
                         st.session_state['metadata'] = data['metadata']
+                        st.session_state['files_refresh'] += 1
                         st.success("Chat history processed successfully!")
                         
                         # Display metadata
@@ -158,6 +196,78 @@ with tab1:
                     st.error(f"Error: {str(e)}")
 
 with tab2:
+    st.header("Manage Chat Files")
+    st.markdown("""
+        View and manage your uploaded chat history files. You can see details about each file
+        and delete files you no longer need.
+    """)
+    
+    # Display stats
+    try:
+        stats_response = requests.get('http://localhost:8000/api/stats')
+        if stats_response.status_code == 200:
+            stats = stats_response.json()
+            st.markdown(f"""
+                <div class="stats-card">
+                    <h4>📊 Your Data Summary</h4>
+                    <p><strong>{stats['total_chat_files']}</strong> Chat Files | 
+                    <strong>{stats['total_memories']}</strong> Chat Memories | 
+                    <strong>{stats['total_notes']}</strong> Personal Notes</p>
+                </div>
+            """, unsafe_allow_html=True)
+    except:
+        pass
+    
+    # Display uploaded files
+    try:
+        response = requests.get('http://localhost:8000/api/chat-files')
+        if response.status_code == 200:
+            chat_files = response.json()
+            if chat_files:
+                st.subheader("Your Uploaded Files")
+                for file in chat_files:
+                    with st.container():
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            participants = json.loads(file['participants']) if file['participants'] else []
+                            date_range = ""
+                            if file['date_range_start'] and file['date_range_end']:
+                                start_date = file['date_range_start'].split('T')[0]
+                                end_date = file['date_range_end'].split('T')[0]
+                                date_range = f"📅 {start_date} to {end_date}"
+                            
+                            st.markdown(f"""
+                                <div class="file-card">
+                                    <div class="file-title">📄 {file['filename']}</div>
+                                    <div class="file-stats">
+                                        💬 {file['total_messages']} messages | 
+                                        📦 {format_file_size(file['file_size'])} | 
+                                        👥 {', '.join(participants)}<br>
+                                        {date_range}<br>
+                                        <small>Uploaded: {file['uploaded_at'].split('T')[0]}</small>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        with col2:
+                            if st.button("🗑️", key=f"delete_file_{file['id']}", help="Delete chat file"):
+                                try:
+                                    delete_response = requests.delete(f'http://localhost:8000/api/chat-files/{file["id"]}')
+                                    if delete_response.status_code == 200:
+                                        st.success("Chat file deleted!")
+                                        st.session_state['files_refresh'] += 1
+                                        st.rerun()
+                                    else:
+                                        st.error("Error deleting file")
+                                except Exception as e:
+                                    st.error(f"Error: {str(e)}")
+            else:
+                st.info("No chat files uploaded yet. Upload your first file in the 'Upload Chat' tab!")
+        else:
+            st.error("Error loading chat files")
+    except Exception as e:
+        st.error(f"Error loading chat files: {str(e)}")
+
+with tab3:
     st.header("Partner Notes")
     st.markdown("""
         Add personal notes about your partner that will help generate better recommendations.
@@ -212,7 +322,7 @@ with tab2:
                                 </div>
                             """, unsafe_allow_html=True)
                         with col2:
-                            if st.button("🗑️", key=f"delete_{note['id']}", help="Delete note"):
+                            if st.button("🗑️", key=f"delete_note_{note['id']}", help="Delete note"):
                                 try:
                                     delete_response = requests.delete(f'http://localhost:8000/api/notes/{note["id"]}')
                                     if delete_response.status_code == 200:
@@ -229,7 +339,7 @@ with tab2:
     except Exception as e:
         st.error(f"Error loading notes: {str(e)}")
 
-with tab3:
+with tab4:
     st.header("Get Personalized Recommendations")
     
     # Additional privacy reminder for recommendations

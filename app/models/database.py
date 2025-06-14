@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -12,10 +12,23 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+class ChatFile(Base):
+    __tablename__ = "chat_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)
+    file_size = Column(Integer, nullable=True)  # Size in bytes
+    total_messages = Column(Integer, nullable=True)
+    participants = Column(Text, nullable=True)  # JSON string of participant names
+    date_range_start = Column(DateTime, nullable=True)
+    date_range_end = Column(DateTime, nullable=True)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
 class ChatMemory(Base):
     __tablename__ = "chat_memories"
 
     id = Column(Integer, primary_key=True, index=True)
+    chat_file_id = Column(Integer, nullable=True)  # Reference to ChatFile
     text = Column(Text, nullable=False)
     timestamp = Column(DateTime, nullable=True)
     embedding = Column(Text, nullable=True)  # Store embedding as JSON string
@@ -32,8 +45,27 @@ class PartnerNote(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-# Create tables
+def migrate_database():
+    """
+    Handle database migrations for schema changes
+    """
+    try:
+        with engine.connect() as conn:
+            # Check if chat_file_id column exists in chat_memories table
+            result = conn.execute(text("PRAGMA table_info(chat_memories)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            if 'chat_file_id' not in columns:
+                # Add the chat_file_id column
+                conn.execute(text("ALTER TABLE chat_memories ADD COLUMN chat_file_id INTEGER"))
+                conn.commit()
+                print("✅ Database migration: Added chat_file_id column to chat_memories table")
+    except Exception as e:
+        print(f"⚠️ Database migration warning: {e}")
+
+# Create tables and run migrations
 Base.metadata.create_all(bind=engine)
+migrate_database()
 
 def get_db():
     db = SessionLocal()
