@@ -21,6 +21,8 @@ if 'chat_uploaded' not in st.session_state:
     st.session_state['chat_uploaded'] = False
 if 'metadata' not in st.session_state:
     st.session_state['metadata'] = None
+if 'notes_refresh' not in st.session_state:
+    st.session_state['notes_refresh'] = 0
 
 # Custom CSS
 st.markdown("""
@@ -52,6 +54,27 @@ st.markdown("""
         margin: 1rem 0;
         color: #856404;
     }
+    .note-card {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    .note-title {
+        font-weight: bold;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    .note-category {
+        background-color: #e9ecef;
+        color: #6c757d;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin-bottom: 0.5rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -59,15 +82,15 @@ st.markdown("""
 st.title("💝 Perfect Partner")
 st.markdown("""
     Your AI-powered relationship assistant that helps you find the perfect gifts and date ideas
-    based on your chat history with your partner.
+    based on your chat history and personal notes about your partner.
 """)
 
 # Privacy Notice
 st.markdown("""
     <div class="privacy-warning">
         <h4>🔒 Privacy Notice</h4>
-        <p><strong>Important:</strong> When you request recommendations, relevant portions of your chat history will be sent to Google Gemini AI for processing. While your data is stored locally on your device, the recommendation feature requires sending chat context to Google's servers.</p>
-        <p>Please ensure you're comfortable with this before uploading sensitive conversations.</p>
+        <p><strong>Important:</strong> When you request recommendations, relevant portions of your chat history and notes will be sent to Google Gemini AI for processing. While your data is stored locally on your device, the recommendation feature requires sending context to Google's servers.</p>
+        <p>Please ensure you're comfortable with this before uploading sensitive conversations or adding personal notes.</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -87,56 +110,130 @@ if not check_backend():
     """)
     st.stop()
 
-# File upload section
-st.header("Step 1: Upload Chat History")
-st.markdown("""
-    Upload your chat history file (WhatsApp, iMessage, or other messenger exports).
-    Your data is stored locally on your device.
-""")
+# Create tabs for different sections
+tab1, tab2, tab3 = st.tabs(["📁 Chat History", "📝 Partner Notes", "💡 Get Recommendations"])
 
-uploaded_file = st.file_uploader("Choose a chat history file", type=['txt'])
+with tab1:
+    st.header("Upload Chat History")
+    st.markdown("""
+        Upload your chat history file (WhatsApp, iMessage, or other messenger exports).
+        Your data is stored locally on your device.
+    """)
 
-if uploaded_file is not None:
-    if st.button("Process Chat History"):
-        with st.spinner("Processing your chat history..."):
-            try:
-                # Send file to backend
-                files = {'file': uploaded_file}
-                response = requests.post('http://localhost:8000/api/upload-chat', files=files, timeout=30)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    st.session_state['chat_uploaded'] = True
-                    st.session_state['metadata'] = data['metadata']
-                    st.success("Chat history processed successfully!")
+    uploaded_file = st.file_uploader("Choose a chat history file", type=['txt'])
+
+    if uploaded_file is not None:
+        if st.button("Process Chat History"):
+            with st.spinner("Processing your chat history..."):
+                try:
+                    # Send file to backend
+                    files = {'file': uploaded_file}
+                    response = requests.post('http://localhost:8000/api/upload-chat', files=files, timeout=30)
                     
-                    # Display metadata
-                    st.subheader("Chat Analysis")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Total Messages", st.session_state['metadata']['total_messages'])
-                        if st.session_state['metadata']['date_range']['start']:
-                            st.write("Date Range:", 
-                                   st.session_state['metadata']['date_range']['start'].split('T')[0],
-                                   "to",
-                                   st.session_state['metadata']['date_range']['end'].split('T')[0])
-                    with col2:
-                        st.write("Participants:", ", ".join(st.session_state['metadata']['participants']))
-                else:
-                    st.error(f"Error processing chat history: {response.text}")
-            except requests.exceptions.Timeout:
-                st.error("Request timed out. The server might be busy. Please try again.")
-            except requests.exceptions.ConnectionError:
-                st.error("Could not connect to the server. Please make sure the backend is running.")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+                    if response.status_code == 200:
+                        data = response.json()
+                        st.session_state['chat_uploaded'] = True
+                        st.session_state['metadata'] = data['metadata']
+                        st.success("Chat history processed successfully!")
+                        
+                        # Display metadata
+                        st.subheader("Chat Analysis")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Total Messages", st.session_state['metadata']['total_messages'])
+                            if st.session_state['metadata']['date_range']['start']:
+                                st.write("Date Range:", 
+                                       st.session_state['metadata']['date_range']['start'].split('T')[0],
+                                       "to",
+                                       st.session_state['metadata']['date_range']['end'].split('T')[0])
+                        with col2:
+                            st.write("Participants:", ", ".join(st.session_state['metadata']['participants']))
+                    else:
+                        st.error(f"Error processing chat history: {response.text}")
+                except requests.exceptions.Timeout:
+                    st.error("Request timed out. The server might be busy. Please try again.")
+                except requests.exceptions.ConnectionError:
+                    st.error("Could not connect to the server. Please make sure the backend is running.")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
 
-# Recommendation section
-if st.session_state.get('chat_uploaded', False):
-    st.header("Step 2: Get Personalized Recommendations")
+with tab2:
+    st.header("Partner Notes")
+    st.markdown("""
+        Add personal notes about your partner that will help generate better recommendations.
+        These could be preferences, interests, memories, or anything important to remember.
+    """)
+    
+    # Add new note section
+    st.subheader("Add New Note")
+    with st.form("add_note_form"):
+        note_title = st.text_input("Title", placeholder="e.g., Favorite Restaurant, Birthday Preferences")
+        note_content = st.text_area("Content", placeholder="Describe the details...")
+        note_category = st.selectbox("Category (Optional)", 
+                                   ["", "Interests", "Preferences", "Memories", "Gifts", "Food", "Travel", "Other"])
+        
+        if st.form_submit_button("Add Note"):
+            if note_title and note_content:
+                try:
+                    response = requests.post('http://localhost:8000/api/notes', 
+                                           json={
+                                               "title": note_title,
+                                               "content": note_content,
+                                               "category": note_category if note_category else None
+                                           })
+                    if response.status_code == 200:
+                        st.success("Note added successfully!")
+                        st.session_state['notes_refresh'] += 1
+                        st.rerun()
+                    else:
+                        st.error(f"Error adding note: {response.text}")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+            else:
+                st.warning("Please fill in both title and content.")
+    
+    # Display existing notes
+    st.subheader("Your Notes")
+    try:
+        response = requests.get('http://localhost:8000/api/notes')
+        if response.status_code == 200:
+            notes = response.json()
+            if notes:
+                for note in notes:
+                    with st.container():
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.markdown(f"""
+                                <div class="note-card">
+                                    <div class="note-title">{note['title']}</div>
+                                    {f'<div class="note-category">{note["category"]}</div>' if note['category'] else ''}
+                                    <div>{note['content']}</div>
+                                    <small style="color: #6c757d;">Added: {note['created_at'][:10]}</small>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        with col2:
+                            if st.button("🗑️", key=f"delete_{note['id']}", help="Delete note"):
+                                try:
+                                    delete_response = requests.delete(f'http://localhost:8000/api/notes/{note["id"]}')
+                                    if delete_response.status_code == 200:
+                                        st.success("Note deleted!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Error deleting note")
+                                except Exception as e:
+                                    st.error(f"Error: {str(e)}")
+            else:
+                st.info("No notes added yet. Add your first note above!")
+        else:
+            st.error("Error loading notes")
+    except Exception as e:
+        st.error(f"Error loading notes: {str(e)}")
+
+with tab3:
+    st.header("Get Personalized Recommendations")
     
     # Additional privacy reminder for recommendations
-    st.info("🔔 **Reminder:** When you request a recommendation, relevant chat excerpts will be sent to Google Gemini for AI processing.")
+    st.info("🔔 **Reminder:** When you request a recommendation, relevant chat excerpts and notes will be sent to Google Gemini for AI processing.")
     
     # Question input
     question = st.text_input(
@@ -164,9 +261,17 @@ if st.session_state.get('chat_uploaded', False):
                         
                         # Display context used
                         with st.expander("View Context Used (This data was sent to Google Gemini)"):
-                            st.warning("The following chat excerpts were sent to Google Gemini for processing:")
-                            for memory in data['context_used']:
-                                st.markdown(f"* {memory}")
+                            st.warning("The following information was sent to Google Gemini for processing:")
+                            
+                            if data['context_used']['chat_memories']:
+                                st.markdown("**Chat History Excerpts:**")
+                                for memory in data['context_used']['chat_memories']:
+                                    st.markdown(f"* {memory}")
+                            
+                            if data['context_used']['partner_notes']:
+                                st.markdown("**Partner Notes:**")
+                                for note in data['context_used']['partner_notes']:
+                                    st.markdown(f"* {note}")
                     else:
                         st.error(f"Error getting recommendation: {response.text}")
                 except requests.exceptions.Timeout:
@@ -183,6 +288,6 @@ st.markdown("---")
 st.markdown("""
     <div style='text-align: center'>
         <p>Made with ❤️ for better relationships</p>
-        <p><strong>Privacy:</strong> Your chat files are stored locally. Recommendations require sending data to Google Gemini.</p>
+        <p><strong>Privacy:</strong> Your chat files and notes are stored locally. Recommendations require sending data to Google Gemini.</p>
     </div>
 """, unsafe_allow_html=True) 

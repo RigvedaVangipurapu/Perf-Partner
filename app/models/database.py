@@ -22,6 +22,16 @@ class ChatMemory(Base):
     relevance_score = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class PartnerNote(Base):
+    __tablename__ = "partner_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    category = Column(String(100), nullable=True)  # e.g., "interests", "preferences", "memories"
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Create tables
 Base.metadata.create_all(bind=engine)
 

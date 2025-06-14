@@ -2,7 +2,7 @@ from typing import List, Dict
 import json
 import numpy as np
 from sqlalchemy.orm import Session
-from app.models.database import ChatMemory
+from app.models.database import ChatMemory, PartnerNote
 from app.utils.chat_processor import ChatProcessor
 import google.generativeai as genai
 from datetime import datetime
@@ -33,6 +33,56 @@ class MemoryService:
         self.db.commit()
         return processed_data['metadata']
     
+    def add_partner_note(self, title: str, content: str, category: str = None) -> PartnerNote:
+        """
+        Add a new note about the partner
+        """
+        note = PartnerNote(
+            title=title,
+            content=content,
+            category=category
+        )
+        self.db.add(note)
+        self.db.commit()
+        self.db.refresh(note)
+        return note
+    
+    def get_all_notes(self) -> List[PartnerNote]:
+        """
+        Get all partner notes
+        """
+        return self.db.query(PartnerNote)\
+            .order_by(PartnerNote.updated_at.desc())\
+            .all()
+    
+    def update_note(self, note_id: int, title: str = None, content: str = None, category: str = None) -> PartnerNote:
+        """
+        Update an existing note
+        """
+        note = self.db.query(PartnerNote).filter(PartnerNote.id == note_id).first()
+        if note:
+            if title:
+                note.title = title
+            if content:
+                note.content = content
+            if category:
+                note.category = category
+            note.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(note)
+        return note
+    
+    def delete_note(self, note_id: int) -> bool:
+        """
+        Delete a note
+        """
+        note = self.db.query(PartnerNote).filter(PartnerNote.id == note_id).first()
+        if note:
+            self.db.delete(note)
+            self.db.commit()
+            return True
+        return False
+    
     def find_relevant_memories(self, query: str, limit: int = 5) -> List[ChatMemory]:
         """
         Find the most relevant memories for a given query
@@ -44,22 +94,51 @@ class MemoryService:
             .limit(limit)\
             .all()
     
-    def generate_recommendation(self, query: str, memories: List[ChatMemory]) -> Dict:
+    def find_relevant_notes(self, query: str, limit: int = 3) -> List[PartnerNote]:
+        """
+        Find relevant notes based on query
+        TODO: Implement proper search/matching
+        For now, return recent notes
+        """
+        return self.db.query(PartnerNote)\
+            .order_by(PartnerNote.updated_at.desc())\
+            .limit(limit)\
+            .all()
+    
+    def generate_recommendation(self, query: str, memories: List[ChatMemory] = None, notes: List[PartnerNote] = None) -> Dict:
         """
         Generate a personalized recommendation using the Gemini model
         """
-        # Prepare context from memories
-        context = "\n".join([f"Memory: {memory.text}" for memory in memories])
+        if memories is None:
+            memories = self.find_relevant_memories(query)
+        if notes is None:
+            notes = self.find_relevant_notes(query)
+        
+        # Prepare context from memories and notes
+        context_parts = []
+        
+        if memories:
+            context_parts.append("Chat History Context:")
+            for memory in memories:
+                context_parts.append(f"- {memory.text}")
+        
+        if notes:
+            context_parts.append("\nPersonal Notes About Partner:")
+            for note in notes:
+                context_parts.append(f"- {note.title}: {note.content}")
+        
+        context = "\n".join(context_parts)
         
         # Create prompt for Gemini
         prompt = f"""
-        Based on the following chat memories:
+        Based on the following information about this person and their relationship:
+        
         {context}
         
         Question: {query}
         
-        Please provide a thoughtful, personalized recommendation that takes into account the specific details from the chat history.
-        Focus on being specific and personal, referencing actual details from the conversations.
+        Please provide a thoughtful, personalized recommendation that takes into account the specific details from both the chat history and personal notes.
+        Focus on being specific and personal, referencing actual details from the conversations and notes.
         """
         
         # Generate response
@@ -67,5 +146,8 @@ class MemoryService:
         
         return {
             "recommendation": response.text,
-            "context_used": [memory.text for memory in memories]
+            "context_used": {
+                "chat_memories": [memory.text for memory in memories],
+                "partner_notes": [f"{note.title}: {note.content}" for note in notes]
+            }
         } 

@@ -36,6 +36,16 @@ class ChatMemory(BaseModel):
 class RecommendationRequest(BaseModel):
     question: str
 
+class NoteRequest(BaseModel):
+    title: str
+    content: str
+    category: Optional[str] = None
+
+class NoteUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
+
 @app.post("/api/upload-chat")
 async def upload_chat(
     file: UploadFile = File(...),
@@ -90,4 +100,83 @@ async def health_check():
     """
     Health check endpoint
     """
-    return {"status": "healthy"} 
+    return {"status": "healthy"}
+
+@app.post("/api/notes")
+async def create_note(note: NoteRequest, db: Session = Depends(get_db)):
+    try:
+        memory_service = MemoryService(db)
+        created_note = memory_service.add_partner_note(
+            title=note.title,
+            content=note.content,
+            category=note.category
+        )
+        return {
+            "id": created_note.id,
+            "title": created_note.title,
+            "content": created_note.content,
+            "category": created_note.category,
+            "created_at": created_note.created_at,
+            "updated_at": created_note.updated_at
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/notes")
+async def get_notes(db: Session = Depends(get_db)):
+    try:
+        memory_service = MemoryService(db)
+        notes = memory_service.get_all_notes()
+        return [
+            {
+                "id": note.id,
+                "title": note.title,
+                "content": note.content,
+                "category": note.category,
+                "created_at": note.created_at,
+                "updated_at": note.updated_at
+            }
+            for note in notes
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/notes/{note_id}")
+async def update_note(note_id: int, note_update: NoteUpdateRequest, db: Session = Depends(get_db)):
+    try:
+        memory_service = MemoryService(db)
+        updated_note = memory_service.update_note(
+            note_id=note_id,
+            title=note_update.title,
+            content=note_update.content,
+            category=note_update.category
+        )
+        if not updated_note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        return {
+            "id": updated_note.id,
+            "title": updated_note.title,
+            "content": updated_note.content,
+            "category": updated_note.category,
+            "created_at": updated_note.created_at,
+            "updated_at": updated_note.updated_at
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/notes/{note_id}")
+async def delete_note(note_id: int, db: Session = Depends(get_db)):
+    try:
+        memory_service = MemoryService(db)
+        success = memory_service.delete_note(note_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Note not found")
+        
+        return {"message": "Note deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 
