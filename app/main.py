@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import os
 from sqlalchemy.orm import Session
 
-from app.models.database import get_db
+from app.models.database import get_db, ChatMemory, Person
 from app.services.memory_service import MemoryService
 
 # Load environment variables
@@ -28,7 +28,7 @@ app.add_middleware(
 # Initialize Google Gemini
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-class ChatMemory(BaseModel):
+class ChatMemorySchema(BaseModel):
     text: str
     timestamp: Optional[str] = None
     relevance_score: Optional[float] = None
@@ -239,4 +239,38 @@ async def delete_note(note_id: int, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/people")
+async def get_people(db: Session = Depends(get_db)):
+    """
+    Get all people/profiles
+    """
+    try:
+        memory_service = MemoryService(db)
+        people = memory_service.get_all_people()
+        return people
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/people/{person_id}")
+async def delete_person(person_id: int, db: Session = Depends(get_db)):
+    """
+    Delete a person and all their associated chat memories
+    """
+    try:
+        # Delete all memories associated with this person
+        db.query(ChatMemory).filter(ChatMemory.person_id == person_id).delete()
+        # Delete the person
+        person = db.query(Person).filter(Person.id == person_id).first()
+        if person:
+            db.delete(person)
+            db.commit()
+            return {"message": "Person and associated memories deleted successfully"}
+        else:
+            return {"message": "Person not found"}
+    except Exception as e:
+        import traceback
+        print(f"[Delete Person Error] {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e)) 

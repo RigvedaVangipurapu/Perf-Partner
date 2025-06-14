@@ -475,6 +475,50 @@ st.markdown("""
         font-family: 'Inter', sans-serif;
         line-height: 1.7;
     }
+
+    /* ========================================
+       MEMORY ANALYSIS CARD - Upload summary
+       ======================================== */
+    .memory-analysis-card {
+        background: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
+        border: 2px solid #a5b4fc;
+        border-radius: 1.5rem;
+        padding: 2rem 1.5rem;
+        margin: 2rem 0 1.5rem 0;
+        color: #3730a3;
+        box-shadow: 0 4px 24px rgba(99, 102, 241, 0.08);
+        font-family: 'Poppins', sans-serif;
+    }
+    .memory-analysis-details {
+        color: #6b7280;
+        font-size: 1.05rem;
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* ========================================
+       GLOBAL TEXT COLOR OVERRIDE
+       ======================================== */
+    body, .main, .file-card, .note-card, .stats-card, .memory-analysis-card, .memory-analysis-details, .recommendation-output, .footer, .stTabs [data-baseweb="tab"], .stButton>button, .file-title, .note-title, .file-stats, .note-category, .privacy-warning, .stAlert, .stInfo, .stWarning, .stSuccess, .stError, .stNotification {
+        color: #1e293b !important;
+    }
+    /* For lighter/secondary text, use a medium grey */
+    .file-stats, .memory-analysis-details, .footer, .note-category {
+        color: #6b7280 !important;
+    }
+    /* For headings in cards/sections */
+    .file-title, .note-title, .main-title, .main-tagline, .stats-card h4, .memory-analysis-card h3 {
+        color: #3730a3 !important;
+    }
+    /* Remove any color: white from buttons, tabs, etc. */
+    .stButton>button, .stTabs [data-baseweb="tab"] {
+        color: #1e293b !important;
+    }
+    /* Ensure placeholder text is also not white */
+    .stTextInput input::placeholder, .stTextArea textarea::placeholder {
+        color: #8b8fa3 !important;
+        opacity: 1 !important;
+        font-style: italic;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -524,7 +568,52 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 # Create tabs for different sections
-tab1, tab2, tab3, tab4 = st.tabs(["📁 Upload Memories", "🗂️ Manage Files", "📝 Personal Notes", "✨ Get Recommendations"])
+# Add a new 'People' tab
+people_tab, tab1, tab2, tab3, tab4 = st.tabs(["👤 People", "📁 Upload Memories", "🗂️ Manage Files", "📝 Personal Notes", "✨ Get Recommendations"])
+
+with people_tab:
+    st.header("People")
+    st.markdown("""
+        Automatically detected people from your chat histories. Each profile is built from the names found in your uploaded chats.
+    """)
+    try:
+        response = requests.get('http://localhost:8000/api/people')
+        if response.status_code == 200:
+            people = response.json()
+            if people:
+                for person in people:
+                    with st.container():
+                        col1, col2 = st.columns([8, 1])
+                        with col1:
+                            st.markdown(f"""
+                                <div class="file-card">
+                                    <div class="file-title">👤 {person['name']}</div>
+                                    <div class="file-stats">
+                                        <b>Messages:</b> {person['message_count']}<br>
+                                        <b>Aliases:</b> {', '.join(person['aliases']) if person['aliases'] else '—'}<br>
+                                        <b>First Message:</b> {person['first_message_date'] or '—'}<br>
+                                        <b>Last Message:</b> {person['last_message_date'] or '—'}<br>
+                                        <b>Profile Notes:</b> {person['profile_notes'] or '—'}
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        with col2:
+                            if st.button("🗑️", key=f"delete_person_{person['id']}", help="Delete person"):
+                                try:
+                                    delete_response = requests.delete(f'http://localhost:8000/api/people/{person["id"]}')
+                                    if delete_response.status_code == 200:
+                                        st.success("Person deleted!")
+                                        st.experimental_rerun()
+                                    else:
+                                        st.error("Error deleting person")
+                                except Exception as e:
+                                    st.error(f"Error: {str(e)}")
+            else:
+                st.info("No people detected yet. Upload a chat file to get started!")
+        else:
+            st.error("Error loading people profiles.")
+    except Exception as e:
+        st.error(f"Error loading people: {str(e)}")
 
 with tab1:
     st.header("Upload Your Memories")
@@ -551,7 +640,11 @@ with tab1:
                         st.success("✨ Memories successfully woven into your tapestry!")
                         
                         # Display metadata
-                        st.subheader("Memory Analysis")
+                        st.markdown("""
+                            <div class="memory-analysis-card">
+                                <h3>🧠 Memory Analysis</h3>
+                                <div class="memory-analysis-details">
+                        """, unsafe_allow_html=True)
                         col1, col2 = st.columns(2)
                         with col1:
                             st.metric("Total Messages", st.session_state['metadata']['total_messages'])
@@ -562,6 +655,10 @@ with tab1:
                                        st.session_state['metadata']['date_range']['end'].split('T')[0])
                         with col2:
                             st.write("Participants:", ", ".join(st.session_state['metadata']['participants']))
+                        st.markdown("""
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
                     else:
                         st.error(f"Error weaving memories: {response.text}")
                 except requests.exceptions.Timeout:

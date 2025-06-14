@@ -2,7 +2,7 @@ from typing import List, Dict
 import json
 import numpy as np
 from sqlalchemy.orm import Session
-from app.models.database import ChatMemory, PartnerNote, ChatFile
+from app.models.database import ChatMemory, PartnerNote, ChatFile, Person
 from app.utils.chat_processor import ChatProcessor
 import google.generativeai as genai
 from datetime import datetime
@@ -13,43 +13,94 @@ class MemoryService:
         self.chat_processor = ChatProcessor()
         self.model = genai.GenerativeModel('gemini-1.5-flash')
     
+    def extract_people_with_llm(self, chat_text: str) -> list:
+        """
+        Use Gemini LLM to extract a list of real participant names from the chat transcript.
+        Returns a list of names, or None if LLM fails.
+        """
+        prompt = (
+            "Extract a list of all real participant names (not system messages or group actions) from the following chat transcript. "
+            "Return only the names as a JSON array, e.g. [\"Alice\", \"Bob\"]. If you cannot find any, return an empty array: []. "
+            "Do not return any explanation or text, only the JSON array.\n\n"
+            f"Chat transcript:\n{chat_text[:12000]}"
+        )
+        try:
+            response = self.model.generate_content(prompt)
+            raw = response.text.strip()
+            print(f"[LLM People Extraction] Raw response: {raw}")
+            # Remove code block markers if present
+            if raw.startswith('```json'):
+                raw = raw[len('```json'):].strip()
+            if raw.startswith('```'):
+                raw = raw[len('```'):].strip()
+            if raw.endswith('```'):
+                raw = raw[:-3].strip()
+            import json as pyjson
+            names = pyjson.loads(raw)
+            if isinstance(names, list) and all(isinstance(n, str) for n in names):
+                return names
+        except Exception as e:
+            print(f"⚠️ LLM people extraction failed: {e}. Raw response: {getattr(response, 'text', None)}")
+        return None
+
     def process_and_store_chat(self, text: str, filename: str = None, file_size: int = None) -> Dict:
         """
-        Process chat history and store memories in the database
+        Process chat history and store memories in the database, linking each message to a Person
         """
-        # Process the chat
+        # Use LLM to extract people
+        llm_people = self.extract_people_with_llm(text)
+        if not llm_people:
+            print("No people extracted by LLM. Skipping people creation.")
+            participants = []
+        else:
+            participants = llm_people
         processed_data = self.chat_processor.process_chat(text)
-        
+        participant_map = {}  # name -> Person object
+
+        # Create or update Person entries for each participant
+        for name in participants:
+            person = self.db.query(Person).filter(Person.name == name).first()
+            if not person:
+                person = Person(name=name, message_count=0)
+                self.db.add(person)
+                self.db.commit()
+                self.db.refresh(person)
+            participant_map[name] = person
+
         # Create chat file record
         chat_file = ChatFile(
             filename=filename or "unknown_file.txt",
             file_size=file_size,
             total_messages=processed_data['metadata']['total_messages'],
-            participants=json.dumps(processed_data['metadata']['participants']),
+            participants=json.dumps(participants),
             date_range_start=datetime.fromisoformat(processed_data['metadata']['date_range']['start']) if processed_data['metadata']['date_range']['start'] else None,
             date_range_end=datetime.fromisoformat(processed_data['metadata']['date_range']['end']) if processed_data['metadata']['date_range']['end'] else None
         )
         self.db.add(chat_file)
         self.db.commit()
         self.db.refresh(chat_file)
-        
-        # Store chunks as memories linked to the chat file
+
+        # Store chunks as memories linked to the chat file and person
+        default_person_id = participant_map[participants[0]].id if participants else None
         for chunk in processed_data['chunks']:
             memory = ChatMemory(
                 chat_file_id=chat_file.id,
+                person_id=default_person_id,
                 text=chunk,
                 timestamp=datetime.utcnow(),  # TODO: Extract actual timestamp from chunk
                 embedding=None,  # TODO: Generate and store embedding
                 relevance_score=None
             )
             self.db.add(memory)
-        
+            # Increment message count for the person
+            if default_person_id:
+                participant_map[participants[0]].message_count += 1
         self.db.commit()
-        
+
         # Add chat file info to metadata
         processed_data['metadata']['chat_file_id'] = chat_file.id
         processed_data['metadata']['uploaded_at'] = chat_file.uploaded_at.isoformat()
-        
+
         return processed_data['metadata']
     
     def get_all_chat_files(self) -> List[ChatFile]:
@@ -208,4 +259,22 @@ class MemoryService:
                 "chat_memories": [memory.text for memory in memories],
                 "partner_notes": [f"{note.title}: {note.content}" for note in notes]
             }
-        } 
+        }
+    
+    def get_all_people(self) -> List[Dict]:
+        """
+        Get all people/profiles with at least 1 message (for debugging and small chats)
+        """
+        people = self.db.query(Person).filter(Person.message_count >= 1).order_by(Person.name.asc()).all()
+        return [
+            {
+                "id": person.id,
+                "name": person.name,
+                "aliases": json.loads(person.aliases) if person.aliases else [],
+                "first_message_date": person.first_message_date.isoformat() if person.first_message_date else None,
+                "last_message_date": person.last_message_date.isoformat() if person.last_message_date else None,
+                "message_count": person.message_count,
+                "profile_notes": person.profile_notes
+            }
+            for person in people
+        ] 
