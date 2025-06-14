@@ -11,9 +11,10 @@ load_dotenv()
 
 # Configure the page
 st.set_page_config(
-    page_title="Perfect Partner",
-    page_icon="💝",
-    layout="wide"
+    page_title="MemoryWeave",
+    page_icon="🧵",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # Initialize session state
@@ -26,90 +27,465 @@ if 'notes_refresh' not in st.session_state:
 if 'files_refresh' not in st.session_state:
     st.session_state['files_refresh'] = 0
 
-# Custom CSS
+# Custom CSS with MemoryWeave theme inspired by Finch
 st.markdown("""
     <style>
+    /* ========================================
+       FONTS & GLOBAL STYLES
+       ======================================== */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap');
+    
+    /* Main container - Overall app background and layout */
     .main {
-        padding: 2rem;
+        padding: 1.5rem;
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #fafbff 0%, #f0f4ff 100%);
+        min-height: 100vh;
     }
+    
+    /* ========================================
+       HEADER SECTION - Logo, Title, Tagline
+       ======================================== */
+    .main-header {
+        text-align: center;
+        padding: 3rem 2rem;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+        border-radius: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(99, 102, 241, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    /* Header background effect - Subtle light overlay */
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.2) 0%, transparent 50%);
+    }
+    
+    /* App title - "MemoryWeave" */
+    .main-title {
+        font-size: 3.2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        position: relative;
+        z-index: 1;
+        letter-spacing: -0.02em;
+    }
+    
+    /* App tagline - "Weave memories into meaningful connections" */
+    .main-tagline {
+        font-size: 1.2rem;
+        font-weight: 400;
+        opacity: 0.9;
+        margin-bottom: 0;
+        position: relative;
+        z-index: 1;
+        letter-spacing: 0.01em;
+    }
+    
+    /* Logo icon - Thread emoji 🧵 */
+    .logo-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        display: block;
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* ========================================
+       TAB NAVIGATION - Upload, Manage, Notes, Recommendations
+       ======================================== */
+    /* Tab container - Glassmorphism background */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(10px);
+        border-radius: 1.5rem;
+        padding: 0.5rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    /* Individual tab styling - Inactive state */
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 1rem;
+        font-weight: 500;
+        border: none;
+        background-color: transparent;
+        color: #64748b;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-size: 0.9rem;
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    /* Tab hover state - Purple tint and lift effect */
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(99, 102, 241, 0.08);
+        color: #6366f1;
+        transform: translateY(-1px);
+    }
+    
+    /* Active tab - Purple gradient background */
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white !important;
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.25);
+        transform: translateY(-2px);
+    }
+    
+    /* Active tab hover - Darker purple gradient */
+    .stTabs [aria-selected="true"]:hover {
+        background: linear-gradient(135deg, #5b5ff0 0%, #8450f5 100%);
+        color: white !important;
+    }
+    
+    /* ========================================
+       BUTTONS - Primary actions throughout the app
+       ======================================== */
+    /* Primary buttons - "Weave Memories", "Weave Note", etc. */
     .stButton>button {
         width: 100%;
+        border-radius: 1rem;
+        border: none;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+        font-weight: 500;
+        padding: 0.875rem 1.5rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-size: 0.95rem;
+        font-family: 'Poppins', sans-serif;
+        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.2);
+        position: relative;
+        overflow: hidden;
     }
-    .chat-message {
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-        display: flex;
-        flex-direction: column;
+    
+    /* Button shine effect - Animated light sweep */
+    .stButton>button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+        transition: left 0.6s ease;
     }
-    .chat-message.user {
-        background-color: #2b313e;
+    
+    /* Button hover state - Lift and enhanced shadow */
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+        background: linear-gradient(135deg, #5b5ff0 0%, #8450f5 100%);
     }
-    .chat-message.assistant {
-        background-color: #475063;
+    
+    /* Button hover shine effect - Light sweep animation */
+    .stButton>button:hover::before {
+        left: 100%;
     }
+    
+    /* ========================================
+       PRIVACY WARNING - Data usage notification
+       ======================================== */
     .privacy-warning {
-        background-color: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 0.5rem;
-        padding: 1rem;
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border: 1px solid #f59e0b;
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        color: #92400e;
+        box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1);
+        position: relative;
+        backdrop-filter: blur(10px);
+    }
+    
+    /* Privacy warning heading styling */
+    .privacy-warning h4 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+        color: #b91c1c !important;
+    }
+    
+    /* ========================================
+       CARDS - Memory files and personal notes display
+       ======================================== */
+    /* Card containers - Glassmorphism design */
+    .note-card, .file-card {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 1.5rem;
+        padding: 1.5rem;
         margin: 1rem 0;
-        color: #856404;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
     }
-    .note-card {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 0.5rem 0;
+    
+    /* Card top border - Purple gradient line that appears on hover */
+    .note-card::before, .file-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
     }
-    .note-title {
-        font-weight: bold;
-        color: #495057;
-        margin-bottom: 0.5rem;
+    
+    /* Card hover state - Lift effect and enhanced shadow */
+    .note-card:hover, .file-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
+        background: rgba(255, 255, 255, 0.95);
     }
-    .note-category {
-        background-color: #e9ecef;
-        color: #6c757d;
-        padding: 0.2rem 0.5rem;
-        border-radius: 0.25rem;
-        font-size: 0.8rem;
-        display: inline-block;
-        margin-bottom: 0.5rem;
+    
+    /* Card hover border effect - Top border appears */
+    .note-card:hover::before, .file-card:hover::before {
+        transform: scaleX(1);
     }
-    .file-card {
-        background-color: #f1f3f4;
-        border: 1px solid #dadce0;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 0.5rem 0;
+    
+    /* Card titles - Note titles and file names */
+    .note-title, .file-title {
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 0.75rem;
+        font-size: 1.1rem;
+        font-family: 'Poppins', sans-serif;
     }
+    
+    /* File title specific styling - Purple color */
     .file-title {
-        font-weight: bold;
-        color: #1a73e8;
-        margin-bottom: 0.5rem;
+        color: #6366f1;
     }
+    
+    /* Note category tags - "Interests", "Preferences", etc. */
+    .note-category {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 2rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-block;
+        margin-bottom: 0.75rem;
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    /* File statistics - Message count, size, participants, dates */
     .file-stats {
-        color: #5f6368;
+        color: #64748b;
         font-size: 0.9rem;
+        line-height: 1.6;
+        font-family: 'Inter', sans-serif;
     }
+    
+    /* ========================================
+       STATS DASHBOARD - Memory tapestry overview
+       ======================================== */
     .stats-card {
-        background-color: #e8f0fe;
-        border: 1px solid #1a73e8;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.9) 100%);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+        border-radius: 2rem;
+        padding: 2rem;
+        margin: 1.5rem 0;
         text-align: center;
+        box-shadow: 0 16px 48px rgba(99, 102, 241, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    /* Stats card background animation - Floating effect */
+    .stats-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+        animation: float 6s ease-in-out infinite;
+    }
+    
+    /* Floating animation keyframes */
+    @keyframes float {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-10px) rotate(180deg); }
+    }
+    
+    /* Stats card heading - "Your Memory Tapestry" */
+    .stats-card h4 {
+        color: #6366f1;
+        margin-bottom: 1rem;
+        font-weight: 600;
+        font-size: 1.3rem;
+        position: relative;
+        z-index: 1;
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    /* Stats card content - File counts and metrics */
+    .stats-card p {
+        position: relative;
+        z-index: 1;
+        font-size: 1rem;
+        font-weight: 500;
+        color: #475569;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* ========================================
+       INFO/WARNING BANNERS - e.g. reminders, alerts
+       ======================================== */
+    .stAlert, .stInfo, .stWarning, .stSuccess, .stError, .stNotification {
+        background: linear-gradient(135deg, #fde8e8 0%, #fef2f2 100%) !important;
+        border: 1.5px solid #fecaca !important;
+        color: #b91c1c !important;
+        border-radius: 1.2rem !important;
+        box-shadow: 0 2px 12px rgba(239, 68, 68, 0.10) !important;
+        font-family: 'Poppins', sans-serif !important;
+    }
+    .stAlert *, .stInfo *, .stWarning *, .stSuccess *, .stError *, .stNotification * {
+        color: #b91c1c !important;
+    }
+    .stAlert h1, .stAlert h2, .stAlert h3, .stAlert h4, .stAlert h5, .stAlert h6,
+    .stInfo h1, .stInfo h2, .stInfo h3, .stInfo h4, .stInfo h5, .stInfo h6,
+    .stWarning h1, .stWarning h2, .stWarning h3, .stWarning h4, .stWarning h5, .stWarning h6,
+    .stSuccess h1, .stSuccess h2, .stSuccess h3, .stSuccess h4, .stSuccess h5, .stSuccess h6,
+    .stError h1, .stError h2, .stError h3, .stError h4, .stError h5, .stError h6,
+    .stNotification h1, .stNotification h2, .stNotification h3, .stNotification h4, .stNotification h5, .stNotification h6 {
+        color: #b91c1c !important;
+        font-weight: 700;
+    }
+    
+    /* ========================================
+       FORM INPUTS - Text fields, textareas, selects
+       ======================================== */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>select {
+        border-radius: 1rem;
+        border: 1.5px solid #d1c4e9;
+        background: #f6f3ff !important;
+        color: #1e293b !important;
+        box-shadow: 0 2px 8px rgba(139, 92, 246, 0.06);
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Placeholder/example text color for all inputs */
+    .stTextInput input::placeholder, .stTextArea textarea::placeholder {
+        color: #8b8fa3 !important;
+        opacity: 1 !important;
+        font-style: italic;
+    }
+    
+    /* Form input focus state - Purple border and enhanced background */
+    .stTextInput>div>div>input:focus, .stTextArea>div>div>textarea:focus, .stSelectbox>div>div>select:focus {
+        border-color: #a78bfa;
+        box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.14);
+        background: #fff !important;
+        color: #1e293b !important;
+    }
+    
+    /* ========================================
+       DELETE BUTTONS - File and note removal
+       ======================================== */
+    .stButton>button[kind="secondary"] {
+        background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+        color: white;
+        width: auto;
+        padding: 0.5rem 1rem;
+        font-size: 1.1rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);
+    }
+    
+    /* Delete button hover state - Darker red and lift effect */
+    .stButton>button[kind="secondary"]:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.3);
+    }
+    
+    /* ========================================
+       FOOTER - App branding and privacy info
+       ======================================== */
+    .footer {
+        text-align: center;
+        padding: 2rem 0;
+        color: #64748b;
+        border-top: 1px solid rgba(226, 232, 240, 0.5);
+        margin-top: 3rem;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Footer brand name - "MemoryWeave" */
+    .footer-brand {
+        font-weight: 600;
+        color: #6366f1;
+        font-family: 'Poppins', sans-serif;
+    }
+    
+    /* ========================================
+       TYPOGRAPHY - Section headers and text
+       ======================================== */
+    h1, h2, h3 {
+        font-family: 'Poppins', sans-serif;
+        color: #1e293b;
+        font-weight: 600;
+    }
+    
+    /* ========================================
+       ANIMATIONS - Page load and interactions
+       ======================================== */
+    /* Fade in animation for content sections */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Apply fade-in animation to main content */
+    .main > div {
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    /* Add CSS for recommendation output color */
+    .recommendation-output {
+        color: #1e293b !important;
+        font-size: 1.08rem;
+        font-family: 'Inter', sans-serif;
+        line-height: 1.7;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Title and description
-st.title("💝 Perfect Partner")
+# Header with new branding
 st.markdown("""
-    Your AI-powered relationship assistant that helps you find the perfect gifts and date ideas
-    based on your chat history and personal notes about your partner.
-""")
+    <div class="main-header">
+        <div class="logo-icon">🧵</div>
+        <h1 class="main-title">MemoryWeave</h1>
+        <p class="main-tagline">Weave memories into meaningful connections</p>
+    </div>
+""", unsafe_allow_html=True)
 
 # Privacy Notice
 st.markdown("""
@@ -148,20 +524,20 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 # Create tabs for different sections
-tab1, tab2, tab3, tab4 = st.tabs(["📁 Upload Chat", "🗂️ Manage Files", "📝 Partner Notes", "💡 Get Recommendations"])
+tab1, tab2, tab3, tab4 = st.tabs(["📁 Upload Memories", "🗂️ Manage Files", "📝 Personal Notes", "✨ Get Recommendations"])
 
 with tab1:
-    st.header("Upload Chat History")
+    st.header("Upload Your Memories")
     st.markdown("""
-        Upload your chat history file (WhatsApp, iMessage, or other messenger exports).
-        Your data is stored locally on your device.
+        Upload your chat history files to start weaving your memories into meaningful connections.
+        Support for WhatsApp, iMessage, and other messenger exports.
     """)
 
-    uploaded_file = st.file_uploader("Choose a chat history file", type=['txt'])
+    uploaded_file = st.file_uploader("Choose a chat history file", type=['txt'], help="Upload your exported chat files here")
 
     if uploaded_file is not None:
-        if st.button("Process Chat History"):
-            with st.spinner("Processing your chat history..."):
+        if st.button("🧵 Weave Memories", type="primary"):
+            with st.spinner("Weaving your memories into the tapestry..."):
                 try:
                     # Send file to backend
                     files = {'file': uploaded_file}
@@ -172,10 +548,10 @@ with tab1:
                         st.session_state['chat_uploaded'] = True
                         st.session_state['metadata'] = data['metadata']
                         st.session_state['files_refresh'] += 1
-                        st.success("Chat history processed successfully!")
+                        st.success("✨ Memories successfully woven into your tapestry!")
                         
                         # Display metadata
-                        st.subheader("Chat Analysis")
+                        st.subheader("Memory Analysis")
                         col1, col2 = st.columns(2)
                         with col1:
                             st.metric("Total Messages", st.session_state['metadata']['total_messages'])
@@ -187,7 +563,7 @@ with tab1:
                         with col2:
                             st.write("Participants:", ", ".join(st.session_state['metadata']['participants']))
                     else:
-                        st.error(f"Error processing chat history: {response.text}")
+                        st.error(f"Error weaving memories: {response.text}")
                 except requests.exceptions.Timeout:
                     st.error("Request timed out. The server might be busy. Please try again.")
                 except requests.exceptions.ConnectionError:
@@ -196,10 +572,9 @@ with tab1:
                     st.error(f"Error: {str(e)}")
 
 with tab2:
-    st.header("Manage Chat Files")
+    st.header("Manage Your Memory Files")
     st.markdown("""
-        View and manage your uploaded chat history files. You can see details about each file
-        and delete files you no longer need.
+        View and manage your uploaded memory files. Each file represents a thread in your tapestry of connections.
     """)
     
     # Display stats
@@ -209,9 +584,9 @@ with tab2:
             stats = stats_response.json()
             st.markdown(f"""
                 <div class="stats-card">
-                    <h4>📊 Your Data Summary</h4>
-                    <p><strong>{stats['total_chat_files']}</strong> Chat Files | 
-                    <strong>{stats['total_memories']}</strong> Chat Memories | 
+                    <h4>🧵 Your Memory Tapestry</h4>
+                    <p><strong>{stats['total_chat_files']}</strong> Memory Files | 
+                    <strong>{stats['total_memories']}</strong> Woven Memories | 
                     <strong>{stats['total_notes']}</strong> Personal Notes</p>
                 </div>
             """, unsafe_allow_html=True)
@@ -224,7 +599,7 @@ with tab2:
         if response.status_code == 200:
             chat_files = response.json()
             if chat_files:
-                st.subheader("Your Uploaded Files")
+                st.subheader("Your Memory Files")
                 for file in chat_files:
                     with st.container():
                         col1, col2 = st.columns([4, 1])
@@ -244,45 +619,45 @@ with tab2:
                                         📦 {format_file_size(file['file_size'])} | 
                                         👥 {', '.join(participants)}<br>
                                         {date_range}<br>
-                                        <small>Uploaded: {file['uploaded_at'].split('T')[0]}</small>
+                                        <small>Woven: {file['uploaded_at'].split('T')[0]}</small>
                                     </div>
                                 </div>
                             """, unsafe_allow_html=True)
                         with col2:
-                            if st.button("🗑️", key=f"delete_file_{file['id']}", help="Delete chat file"):
+                            if st.button("🗑️", key=f"delete_file_{file['id']}", help="Remove from tapestry"):
                                 try:
                                     delete_response = requests.delete(f'http://localhost:8000/api/chat-files/{file["id"]}')
                                     if delete_response.status_code == 200:
-                                        st.success("Chat file deleted!")
+                                        st.success("Memory file removed from tapestry!")
                                         st.session_state['files_refresh'] += 1
                                         st.rerun()
                                     else:
-                                        st.error("Error deleting file")
+                                        st.error("Error removing file")
                                 except Exception as e:
                                     st.error(f"Error: {str(e)}")
             else:
-                st.info("No chat files uploaded yet. Upload your first file in the 'Upload Chat' tab!")
+                st.info("No memory files yet. Upload your first file in the 'Upload Memories' tab to start weaving your tapestry!")
         else:
-            st.error("Error loading chat files")
+            st.error("Error loading memory files")
     except Exception as e:
-        st.error(f"Error loading chat files: {str(e)}")
+        st.error(f"Error loading memory files: {str(e)}")
 
 with tab3:
-    st.header("Partner Notes")
+    st.header("Personal Notes")
     st.markdown("""
-        Add personal notes about your partner that will help generate better recommendations.
-        These could be preferences, interests, memories, or anything important to remember.
+        Add personal notes that will be woven into your recommendations. 
+        These threads of insight help create richer, more meaningful connections.
     """)
     
     # Add new note section
     st.subheader("Add New Note")
     with st.form("add_note_form"):
         note_title = st.text_input("Title", placeholder="e.g., Favorite Restaurant, Birthday Preferences")
-        note_content = st.text_area("Content", placeholder="Describe the details...")
+        note_content = st.text_area("Content", placeholder="Describe the details that matter...")
         note_category = st.selectbox("Category (Optional)", 
                                    ["", "Interests", "Preferences", "Memories", "Gifts", "Food", "Travel", "Other"])
         
-        if st.form_submit_button("Add Note"):
+        if st.form_submit_button("🧵 Weave Note", type="primary"):
             if note_title and note_content:
                 try:
                     response = requests.post('http://localhost:8000/api/notes', 
@@ -292,18 +667,18 @@ with tab3:
                                                "category": note_category if note_category else None
                                            })
                     if response.status_code == 200:
-                        st.success("Note added successfully!")
+                        st.success("✨ Note woven into your tapestry!")
                         st.session_state['notes_refresh'] += 1
                         st.rerun()
                     else:
-                        st.error(f"Error adding note: {response.text}")
+                        st.error(f"Error weaving note: {response.text}")
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
             else:
                 st.warning("Please fill in both title and content.")
     
     # Display existing notes
-    st.subheader("Your Notes")
+    st.subheader("Your Woven Notes")
     try:
         response = requests.get('http://localhost:8000/api/notes')
         if response.status_code == 200:
@@ -318,42 +693,42 @@ with tab3:
                                     <div class="note-title">{note['title']}</div>
                                     {f'<div class="note-category">{note["category"]}</div>' if note['category'] else ''}
                                     <div>{note['content']}</div>
-                                    <small style="color: #6c757d;">Added: {note['created_at'][:10]}</small>
+                                    <small style="color: #6c757d;">Woven: {note['created_at'][:10]}</small>
                                 </div>
                             """, unsafe_allow_html=True)
                         with col2:
-                            if st.button("🗑️", key=f"delete_note_{note['id']}", help="Delete note"):
+                            if st.button("🗑️", key=f"delete_note_{note['id']}", help="Remove note"):
                                 try:
                                     delete_response = requests.delete(f'http://localhost:8000/api/notes/{note["id"]}')
                                     if delete_response.status_code == 200:
-                                        st.success("Note deleted!")
+                                        st.success("Note removed!")
                                         st.rerun()
                                     else:
-                                        st.error("Error deleting note")
+                                        st.error("Error removing note")
                                 except Exception as e:
                                     st.error(f"Error: {str(e)}")
             else:
-                st.info("No notes added yet. Add your first note above!")
+                st.info("No notes woven yet. Add your first note above to start building your tapestry of insights!")
         else:
             st.error("Error loading notes")
     except Exception as e:
         st.error(f"Error loading notes: {str(e)}")
 
 with tab4:
-    st.header("Get Personalized Recommendations")
+    st.header("Get Woven Recommendations")
     
     # Additional privacy reminder for recommendations
-    st.info("🔔 **Reminder:** When you request a recommendation, relevant chat excerpts and notes will be sent to Google Gemini for AI processing.")
+    st.info("🔔 **Reminder:** When you request a recommendation, relevant memories and notes will be sent to Google Gemini for AI processing.")
     
     # Question input
     question = st.text_input(
         "What would you like to know?",
-        placeholder="e.g., What should I get for their birthday? or Suggest a date night idea"
+        placeholder="e.g., What should I get for their birthday? or Suggest a meaningful date idea"
     )
     
-    if st.button("Get Recommendation"):
+    if st.button("✨ Weave Recommendation", type="primary"):
         if question:
-            with st.spinner("Generating personalized recommendation..."):
+            with st.spinner("Weaving your memories into a personalized recommendation..."):
                 try:
                     # Send question to backend
                     response = requests.post(
@@ -366,24 +741,24 @@ with tab4:
                         data = response.json()
                         
                         # Display recommendation
-                        st.subheader("Your Personalized Recommendation")
-                        st.markdown(data['recommendation'])
+                        st.subheader("Your Woven Recommendation")
+                        st.markdown(f'<div class="recommendation-output">{data["recommendation"]}</div>', unsafe_allow_html=True)
                         
                         # Display context used
-                        with st.expander("View Context Used (This data was sent to Google Gemini)"):
-                            st.warning("The following information was sent to Google Gemini for processing:")
+                        with st.expander("View Memory Threads Used (This data was sent to Google Gemini)"):
+                            st.warning("The following memory threads were woven together for your recommendation:")
                             
                             if data['context_used']['chat_memories']:
-                                st.markdown("**Chat History Excerpts:**")
+                                st.markdown("**Memory Excerpts:**")
                                 for memory in data['context_used']['chat_memories']:
-                                    st.markdown(f"* {memory}")
+                                    st.markdown(f"🧵 {memory}")
                             
                             if data['context_used']['partner_notes']:
-                                st.markdown("**Partner Notes:**")
+                                st.markdown("**Personal Notes:**")
                                 for note in data['context_used']['partner_notes']:
-                                    st.markdown(f"* {note}")
+                                    st.markdown(f"📝 {note}")
                     else:
-                        st.error(f"Error getting recommendation: {response.text}")
+                        st.error(f"Error weaving recommendation: {response.text}")
                 except requests.exceptions.Timeout:
                     st.error("Request timed out. The server might be busy. Please try again.")
                 except requests.exceptions.ConnectionError:
@@ -394,10 +769,9 @@ with tab4:
             st.warning("Please enter a question first.")
 
 # Footer
-st.markdown("---")
 st.markdown("""
-    <div style='text-align: center'>
-        <p>Made with ❤️ for better relationships</p>
-        <p><strong>Privacy:</strong> Your chat files and notes are stored locally. Recommendations require sending data to Google Gemini.</p>
+    <div class="footer">
+        <p>Made with ❤️ by <span class="footer-brand">MemoryWeave</span></p>
+        <p><strong>Privacy:</strong> Your memories and notes are stored locally. Recommendations require sending data to Google Gemini.</p>
     </div>
 """, unsafe_allow_html=True) 
